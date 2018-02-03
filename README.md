@@ -114,18 +114,18 @@ Docker for AWS can be used quite easily by following instructions here:
 
 ## Authors
 
-* [AUTHORS](https://github.com/innocorps/)
+* [AUTHORS](https://github.com/innocorps/pyIoT/blob/master/AUTHORS)
 
 ## License
 
 * [LICENSE](LICENSE) 
-* [Third Party Licenses](https://github.com/innocorps/)
+* [Third Party Licenses](https://github.com/innocorps/pyIoT/tree/master/licenses)
 
 ## Known Issues
 
 * Currently, accounts set up through OAuth cannot set a password and get a token, they can only sign in through the web interface. 
 * Periodically, upon deployment, the waits within the docker web container will not start up after Redis and the swarm will have to be cancelled and started up again.
-* See also Issues.
+* See also [Issues](https://github.com/innocorps/pyIoT/issues).
 
 ## Acknowledgements 
 
