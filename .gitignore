@@ -1,0 +1,16 @@
+# log files
+*.log
+~*
+.DS_Store
+*.pyc
+venv/
+*.swp
+.ropeproject/
+tmp/
+sphinx_docs/_build/
+*.sqlite
+__pycache__/
+*.secret
+*.secrets
+*.env
+.ipynb_checkpoints/

@@ -1,0 +1,60 @@
+#!/bin/bash
+#
+# bash completion for deploy
+# To enable the completions either:
+#	- place this file in /etc/bash_completion.d (linux) 
+#	OR
+#	- /usr/local/etc/bash_completion.d (mac) (brew install bash-completion needed)
+#	OR
+#	Copy to ~/ and source in .bashrc
+#
+
+_deploy_backend()
+{
+    local cur prev
+
+    cur=${COMP_WORDS[COMP_CWORD]}
+    prev=${COMP_WORDS[COMP_CWORD-1]}
+
+    case ${COMP_CWORD} in
+        1)
+            COMPREPLY=($(compgen -W "build deploy clean stop login bash logs migrate help" ${cur}))
+            ;;
+        2)
+            case ${prev} in
+                build)
+                    COMPREPLY=($(compgen -W "images docs" ${cur}))
+                    ;;
+                deploy)
+                    COMPREPLY=($(compgen -W "test local" ${cur}))
+                    ;;
+                clean)
+                    COMPREPLY=($(compgen -W "images volumes venv all" ${cur}))
+                    ;;
+                stop)
+                    COMPREPLY=()
+                    ;;
+                login)
+                    COMPREPLY=()
+                    ;;
+                bash)
+                    COMPREPLY=($(compgen -W "web" ${cur}))
+                    ;;
+                logs)
+                    COMPREPLY=($(compgen -W "web nginx redis postgres postgres_test" ${cur}))
+                    ;;
+                migrate)
+                    COMPREPLY=()
+                    ;;
+                help)
+                    COMPREPLY=()
+                    ;;
+            esac
+            ;;
+        *)
+            COMPREPLY=()
+            ;;
+    esac
+}
+
+complete -F _deploy_backend deploy_backend.sh

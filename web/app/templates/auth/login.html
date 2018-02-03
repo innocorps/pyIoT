@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block title %}PyIoT Login{% endblock %}
+
+{% block page_content %}
+<div class="page-header">
+    <h1>Login</h1>
+</div>
+<div class="col-md-4">
+    {{ wtf.quick_form(form) }}
+    <br>
+    <b>Forgot your password? <a href="{{ url_for('auth.password_reset_request') }}">Click here to reset it</a>.</b>
+    <br>
+    <br>
+    <p>New user? <a href="{{ url_for('auth.register') }}">Click here to create account</a>.</p>
+    <br>
+    <a href="{{url_for('auth.oauth_authorization', provider='google') }}"><img src="{{ url_for('static', filename='assets/google_sign_in_button.png') }}" height="48" width="193"/></a>
+</div>
+{% endblock %}

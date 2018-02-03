@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% import "_macros.html" as macros %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block title %}PyIoT Data{% endblock %}
+
+{% block page_content %}
+
+
+<div class="page-header">
+    <h1>PyIoT Data</h1>
+</div>
+
+<div class="container-fluid" id="ajax">
+	<div class="btn-group">
+	{% if true == alive %}
+		<button type="button" class="btn btn-success">CONNECTED</button>
+	{% else %}
+		<button type="button" class="btn btn-danger">DISCONNECTED</button>
+	{% endif %}
+	</div>
+	{{ macros.table_widget("", machine_columns, data) }}
+	{% if pagination %}
+	<div class="pagination">
+	    {{ macros.pagination_widget(pagination, '.show_machine_data') }}
+	</div>
+	{% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+	<script>
+		$(document).ready(function(){
+			(function doPoll(){ // immediately invoked function expression
+				setTimeout(function(){
+					$('#ajax').load(document.URL + ' ' + '#ajax', function(response, status, xhr){
+						if (typeof(Storage) !== "undefined") {
+							var tempScrollTop = parseInt(sessionStorage.getItem("data_tempScrollTop"));
+							var tempScrollLeft = parseInt(sessionStorage.getItem("data_tempScrollLeft"));
+							var tableArray = JSON.parse(sessionStorage.getItem("data_tableArray"));
+							$(window).scrollTop(tempScrollTop);
+							$(window).scrollLeft(tempScrollLeft);
+							$(".table-responsive").each(function(i, el){
+								currentID = $(this).children(".table").attr("id");
+								if (tableArray[i].id === currentID) {
+									$(this).scrollTop(tableArray[i].scrollTop);
+									$(this).scrollLeft(tableArray[i].scrollLeft);
+								}
+							});
+							doPoll(); //setup next poll recursively
+							if ( status === "error" ) {
+								//alert("Error refreshing data.");
+							}
+						} else {
+							alert("This browser does not support HTML5 storage.");
+						}
+					});
+				}, 1000);
+			})();
+			(function updateScroll(){ // immediately invoked function expression
+				setTimeout(function(){
+					if (typeof(Storage) !== "undefined") {
+						var tempScrollTop = $(window).scrollTop();
+						var tempScrollLeft = $(window).scrollLeft();
+						var tableArray = [];
+						$(".table-responsive").each(function(){
+						    var tableParam = {
+							id: $(this).children(".table").attr("id"),
+							scrollTop: $(this).scrollTop(),
+							scrollLeft: $(this).scrollLeft()
+						    };
+						    tableArray.push(tableParam);
+						});
+						sessionStorage.setItem("data_tempScrollTop", tempScrollTop.toString());
+						sessionStorage.setItem("data_tempScrollLeft", tempScrollLeft.toString());
+						sessionStorage.setItem("data_tableArray", JSON.stringify(tableArray));
+						updateScroll();
+					} else {
+						alert("This browser does not support HTML5 storage.");
+					}
+				}, 10);
+			})();
+		});
+	</script>
+
+{% endblock %}

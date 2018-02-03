@@ -1,0 +1,43 @@
+.git
+.git/*
+.gitattributes
+.ipynb_checkpoints
+notebooks
+unused
+Dockerfile
+.DS_Store
+.gitignore
+README.md
+env.*
+devops
+*.env
+*.secret
+*.secrets
+
+
+# To prevent storing dev/temporary container data
+*.csv
+tmp
+*.tmp
+
+# Vivado generated files
+vivado*jou
+vivado*log
+vivado*str
+vivado*png
+# log files
+*.log
+~*
+.DS_Store
+*.pyc
+venv/*
+*.swp
+.ropeproject/*
+FPGA\ Bitfiles/*
+redis-stable/*
+tmp/*
+sphinx_docs/_build/*
+*.sqlite
+__pycache__/*
+.ipynb_checkpoints/
+.ipynb

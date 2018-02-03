@@ -1,0 +1,133 @@
+version: "3.3"
+
+services:
+  web:
+    image: "${DOCKER_REPO}/${DOCKER_STACK}_web:${GIT_REV_SHORT:-latest}"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints: [node.role == manager] # this parameter should be worker when in the cloud with managers and workers
+    command: ./docker_setup.sh postgres postgres_test
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - PYTHONUNBUFFERED=1
+    secrets:
+      - chamber_of_secrets
+      - psql_password_secrets
+    networks:
+      - webnet
+    labels:
+      com.backend.description: "web"
+
+  nginx:
+    image: "${DOCKER_REPO}/${DOCKER_STACK}_nginx:${GIT_REV_SHORT:-latest}"
+    deploy:
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - web
+    networks:
+      - webnet
+    secrets:
+      - nginx_ssl.crt
+      - nginx_ssl.key
+      - nginx_dhparam.pem
+    labels:
+      com.backend.description: "nginx"
+    entrypoint: /opt/wait-for-it.sh web:8000 -s -t 60 -- nginx -g "daemon off;"
+
+  postgres:
+    image: postgres:9.6
+    volumes:
+      - db-volume:/var/lib/postgresql/data
+    deploy:
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints: [node.role == manager]
+    environment:
+      - PGPASSFILE=/run/secrets/psql_password_secrets
+      - PGPORT=5432
+    secrets:
+      - psql_password_secrets
+    networks:
+      - webnet
+    labels:
+      com.backend.description: "dev"
+    ports:
+      - "5432:5432"
+
+  postgres_test:
+    image: postgres:9.6
+    volumes:
+      - db-test-volume:/var/lib/postgresql/data
+    deploy:
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints: [node.role == manager]
+    networks:
+      - webnet
+    ports:
+      - "5433:5433" #expose port 5433 outside the container
+    environment:
+      - PGPASSFILE=/run/secrets/psql_password_secrets
+      - POSTGRES_DB=testing
+      - PGPORT=5433
+    labels:
+      com.backend.description: "test"
+    secrets:
+      - psql_password_secrets
+
+  redis: 
+    image: "${DOCKER_REPO}/${DOCKER_STACK}_redis:${GIT_REV_SHORT:-latest}"
+    deploy:
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints: [node.role == manager]
+    secrets:
+      - chamber_of_secrets
+    networks:
+      - webnet
+    labels:
+      com.backend.description: "redis"
+
+  visualizer:
+    image: dockersamples/visualizer:stable
+    ports:
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+    networks:
+      - webnet
+
+networks:
+  webnet:
+
+volumes:
+  db-volume:
+  db-test-volume:
+
+secrets:
+  chamber_of_secrets:
+    file: ./chamber_of.secrets
+  psql_password_secrets:
+    file: ./psql_password.secrets
+  nginx_ssl.crt:
+    file: ./nginx.crt.secrets
+  nginx_ssl.key:
+    file: ./nginx.key.secrets
+  nginx_dhparam.pem:
+    file: ./dhparam.pem.secrets
+

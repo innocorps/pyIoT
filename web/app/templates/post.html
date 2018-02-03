@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block title %}PyIot Post{% endblock %}
+
+{% block page_content %}
+{% if post_success == False%}
+	<div class="alert alert-danger">
+		<strong>Error:</strong> There was an issue sending the data to the database.
+	</div>
+{% elif post_success == True%}
+	<div class="alert alert-success">
+		<strong>Success!</strong> Data was successfully written to the database.
+	</div>
+{% endif %}
+<div class="page-header">
+    <h1>This is the POST page.</h1>
+</div>
+<div>
+{{wtf.quick_form(form)}}
+</div>
+
+
+{% endblock %}

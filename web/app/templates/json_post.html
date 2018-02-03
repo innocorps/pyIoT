@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block title %}PyIoT JSON Post{% endblock %}
+
+{% block page_content %}
+{% if is_dict == False%}
+	<div class="alert alert-danger">
+		<strong>Error:</strong> That was not a valid JSON message: {{error}}
+	</div>
+{% elif is_dict == True%}
+	<div class="alert alert-success">
+		<strong>Success!</strong> JSON was successfully posted.
+	</div>
+{% endif %}
+<div class="page-header">
+    <h1>This is the JSON POST page.</h1>
+</div>
+<div>
+{{wtf.quick_form(form)}}
+</div>
+
+
+{% endblock %}
