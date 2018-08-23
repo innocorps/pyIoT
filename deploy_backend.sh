@@ -52,8 +52,11 @@ Commands:
     login			Login to your docker cloud account
     bash
     	    web			Creates a bash shell into web container
+	    redis		Creates a bash shell into redis cache container. 'redis-cli' to access cmd line interface.
     logs
     	    web			Shows logs for the web service
+	    celery		Shows logs for celery distributed task queue
+	    flower		Shows logs for the flower monitor of the celery distributed task queue
 	    nginx		Shows logs for nginx
 	    redis		Shows logs for redis
 	    postgres		Shows logs for postgres development db
@@ -63,7 +66,7 @@ Commands:
     help			Prints this message
 
 Options:
-    -f	    force		Force flag to delete volumes and clean
+    -f	    force		Force flag to migrate database, or delete volumes or clean
 
 EOF
 }
@@ -100,8 +103,8 @@ docker_deploy_swarm(){
 }
 
 clean_venv(){
-	echo "Cleaning virtual environments and py cache"
-	find . | grep -E "(__pycache__|\.pyc|\.pyo$)" | xargs rm -rf
+	echo "Cleaning virtual environments, ropeprojects and py cache"
+	find . | grep -E "(__pycache__|\.pyc|\.ropeproject|\.pyo$)" | xargs rm -rf
 	find . -name "venv" | xargs rm -rf
 }
 
@@ -151,8 +154,13 @@ docker_stop(){
 }
 
 docker_exec_shell_web(){
-	echo "Creating a bash shell into web"
+	echo "Creating a bash shell into web. 'exit' to quit."
 	docker exec -it $(docker ps -f name=${DOCKER_STACK}_web -q ) /bin/bash
+}
+
+docker_exec_shell_redis(){
+	echo "Creating a bash shell into redis. Run 'redis-cli' to access redis command line interface. 'exit' to quit."
+	docker exec -it $(docker ps -f name=${DOCKER_STACK}_redis -q ) /bin/bash
 }
 
 run_unit_tests_web(){
@@ -175,6 +183,12 @@ docker_service_logs(){
 	case "$1" in
 		web)
 			docker service logs $(docker service ls -f name=${DOCKER_STACK}_web -q) -f -t
+		;;
+		celery)
+			docker service logs $(docker service ls -f name=${DOCKER_STACK}_celery -q) -f -t
+		;;
+		flower)
+			docker service logs $(docker service ls -f name=${DOCKER_STACK}_flower -q) -f -t
 		;;
 		nginx)
 			docker service logs $(docker service ls -f name=${DOCKER_STACK}_nginx -q) -f -t
@@ -294,13 +308,30 @@ case "$ARG1" in
 		docker login
 	;;
 	bash)
-		docker_exec_shell_web
+		case "$ARG2" in
+			web)
+				docker_exec_shell_web	
+			;;
+			redis)
+				docker_exec_shell_redis
+			;;
+		esac
 	;;
 	logs)
 		docker_service_logs $ARG2
 	;;
 	migrate)
-		docker_migrate_db
+		case "$ARG2" in 
+			-f)
+				docker_migrate_db
+			;;
+			*)
+				echo -e "\n"
+				echo "WARNING: Migration requires -f flag"
+				echo -e "\n"
+				usage
+			;;
+		esac
 	;;
 	help) 
 		usage

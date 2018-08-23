@@ -21,7 +21,6 @@
 # https://github.com/sphinx-doc/sphinx/issues/3760
 # https://bitbucket.org/birkenfeld/sphinx-contrib/issues/182/sphinxcontribautohttpflask-sphinx-object
 #
-
 import os
 import sys
 import subprocess

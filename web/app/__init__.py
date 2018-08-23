@@ -10,10 +10,12 @@ from flask_bootstrap import Bootstrap
 from flask_bootstrap import WebCDN
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
-from flask_cache import Cache
+from flask_caching import Cache
 from flask_mail import Mail
-from config import config
+from config import config, Config
+from celery import Celery
 from .watchdog import Watchdog
+from werkzeug.contrib.fixers import ProxyFix
 
 bootstrap = Bootstrap()
 db = SQLAlchemy()
@@ -24,6 +26,8 @@ cache = Cache(config={
     'CACHE_REDIS_HOST': 'redis',
     'CACHE_REDIS_PORT': '6379',
     'CACHE_REDIS_URL': 'redis://redis:6379'})
+
+celery = Celery(__name__, broker=Config.CELERY_BROKER_URL)
 
 login_manager = LoginManager()
 login_manager.session_protection = 'basic'
@@ -44,7 +48,6 @@ logger.addHandler(info_file_handler)
 
 watchdog = Watchdog(timeout=10, cache=cache)
 
-
 def create_app(config_name):
     """
     Creates an instance of the Backend App
@@ -57,6 +60,11 @@ def create_app(config_name):
         Backend, which starts up the app
     """
     app = Flask(__name__)
+    # WARNING It is a security issue to use this middleware in a non-proxy
+    # setup that enforces using https as it will blindly trust the incoming
+    # headers which could be forged by a malicious client. See also the
+    # following: http://flask.pocoo.org/docs/1.0/deploying/wsgi-standalone/
+    app.wsgi_app = ProxyFix(app.wsgi_app)
     app.config.from_object(config[config_name])
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     config[config_name].init_app(app)
@@ -70,6 +78,7 @@ def create_app(config_name):
     mail.init_app(app)
     db.init_app(app)
     cache.init_app(app)
+    celery.conf.update(app.config)
 
     # Clear cache at startup, Redis defaults to clear the whole DB if that
     # happens. NOTE: I am doing this to create a consistent startup
@@ -92,6 +101,7 @@ def create_app(config_name):
         error_file_handler.setFormatter(formatter)
         app.logger.setLevel(app.config['ERROR_LOGGING_LEVEL'])
         app.logger.addHandler(error_file_handler)
+
 
     from .main import main as main_blueprint
     app.register_blueprint(main_blueprint)

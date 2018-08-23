@@ -11,8 +11,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin, AnonymousUserMixin
 from . import db, login_manager
 
+
 # pylint: disable=no-member
 class User(UserMixin, db.Model):
+
     """
     Template for the User table
 
@@ -23,6 +25,7 @@ class User(UserMixin, db.Model):
         email: Takes the user's email
         password_hash: storing the hashed & salted password
     """
+
     __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(128), index=True)
@@ -279,7 +282,7 @@ class Machine(db.Model):
         data = Machine.from_json(json_post)
         to_json_data = data.to_json()
         for key, value in to_json_data.items():
-            if value == None:
+            if value == "None":
                 if not current_app.config['TESTING']:  # pragma: no cover
                     # disable print statement during testing
                     # to avoid filling console with messages

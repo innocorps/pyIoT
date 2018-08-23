@@ -1,4 +1,5 @@
 """Handles authentication information for API calls"""
+from sqlalchemy import func
 from flask import g, jsonify
 from flask_httpauth import HTTPBasicAuth
 from . import api_0_1
@@ -16,7 +17,7 @@ def verify_password(email_or_token, password):
 
     Args:
         email_or_token: used to verify the identity of the user
-        password: tthe user's password
+        password: the user's password
 
     Returns:
         user.verify_password, which returns the verified user's password
@@ -28,7 +29,8 @@ def verify_password(email_or_token, password):
         g.current_user = User.verify_auth_token(email_or_token)
         g.token_used = True
         return g.current_user is not None
-    user = User.query.filter_by(email=email_or_token).first()
+    email_or_token = email_or_token.lower()
+    user = User.query.filter(func.lower(User.email)==email_or_token).first()
     if not user:
         return False
     g.current_user = user

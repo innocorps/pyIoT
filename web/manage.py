@@ -15,7 +15,7 @@ if os.environ.get('FLASK_COVERAGE'):  # For checking test coverage
 # These imports must be below the coverage start function, else
 # the coverage misses parts of scripts
 # pylint: disable=wrong-import-position
-from app import create_app, db
+from app import create_app, db, celery
 from app.models import User, Machine
 
 try:
@@ -47,7 +47,7 @@ def make_shell_context():
     Returns:
         dict, takes the data and formats into a dictionary and indexes by keys
     """
-    return dict(app=app, db=db, User=User, Machine=Machine)
+    return dict(app=app, db=db, User=User, Machine=Machine, celery=celery)
 
 
 manager.add_command("shell", Shell(make_context=make_shell_context))

@@ -6,7 +6,12 @@
 #	OR
 #	- /usr/local/etc/bash_completion.d (mac) (brew install bash-completion needed)
 #	OR
-#	Copy to ~/ and source in .bashrc
+#	- Copy to ~/ and source in .bashrc
+#	OR 
+#	- Add this to your .bashrc file
+#	if [ -f <path_to_dir>/deploy_backend.bash-completion ]; then
+#        . <path_to_dir>/etc/deploy_innocorps.bash-completion
+#	fi
 #
 
 _deploy_backend()

@@ -1,7 +1,6 @@
 # Use an official Python runtime as a parent image
 FROM python:3.6
 
-
 # I would like to have access to the most up to date utilities, vim and psql to wait on postgres
 RUN apt-get update && apt-get install -y \
   coreutils \
@@ -22,7 +21,8 @@ WORKDIR /home/flask/app/web
 # This helps to avoid re-installing python packages if source code is changed
 COPY requirements.txt /home/flask/app/web
 RUN dos2unix /home/flask/app/web/requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip3 install --upgrade pip
+RUN pip3 install --no-cache-dir -r requirements.txt
 
 # A .dockerignore file needs to be present to ignore .git etc
 # Copy the source code into the container

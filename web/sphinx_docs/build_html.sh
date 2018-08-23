@@ -16,6 +16,8 @@ echo "Cleaning sphinxdocs"
 make -f Makefile clean
 echo "Done"
 
+
+
 echo "Creating sphinx apidocs"
 sphinx-apidoc -f -o source/ ../app/
 echo "Done"

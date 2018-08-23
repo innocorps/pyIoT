@@ -122,10 +122,8 @@ class FlaskClientTestCase(unittest.TestCase):
         else:
             self.assertTrue(re.search(b'Hello,\s+Waluigi.', response.data))
 
-        self.logout()
-
     def test_wrong_email_register(self):
-        """Register a a not-allowed account, domain should fail"""
+        """Register a non-innocorps account, should fail"""
         response = self.client.post(url_for('auth.register'), data={
             'email': 'wario@nintendo.com',
             'username': 'Wario',
@@ -133,7 +131,7 @@ class FlaskClientTestCase(unittest.TestCase):
             'password2': 'wariotime',
         }, follow_redirects=True)
         self.assertTrue(response.status_code == 200)
-        self.assertTrue(b'Not an allowed email domain' in response.data)
+        self.assertTrue(b'Not company email' in response.data)
 
     def test_used_account_register(self):
         """
@@ -160,6 +158,47 @@ class FlaskClientTestCase(unittest.TestCase):
         }, follow_redirects=True)
         self.assertTrue(response.status_code == 200)
         self.assertTrue(b'Invalid username or password.' in response.data)
+
+    def test_email_and_username_case_insensitivty(self):
+        """Checks case-insensitive account email/username"""
+        # register a new account
+        response = self.client.post(url_for('auth.register'), data={
+            'email': 'WaLuIgI@'+current_app.config['MAIL_DOMAIN'],
+            'username': 'WaLuIgI',
+            'password': 'walawala',
+            'password2': 'walawala',
+        })
+        self.assertEqual(response.status_code, 302)
+
+        # confirm account
+        user = User.query.filter_by(email='waluigi@'+current_app.config['MAIL_DOMAIN']).first()
+        token = user.generate_confirmation_token()
+        response = self.client.get(url_for('auth.confirm', token=token),
+                                   follow_redirects=True)
+
+        # login with the new account
+        response = self.client.post(url_for('auth.login'), data={
+            'email': 'waluigi@'+current_app.config['MAIL_DOMAIN'],
+            'password': 'walawala'
+        }, follow_redirects=True)
+        self.assertTrue(re.search(b'Hello,\s+WaLuIgI.', response.data))
+        if self.app.config['MAIL_USERNAME'] != '':
+            self.assertTrue(
+                b'You have not confirmed your account yet' in response.data)
+        else:
+            self.assertTrue(b'confirmed automatically' in response.data)
+
+        self.logout()
+
+        # register a new account w/ same email; fail
+        response = self.client.post(url_for('auth.register'), data={
+            'email': 'WALUIGI@'+current_app.config['MAIL_DOMAIN'],
+            'username': 'WALUIGI',
+            'password': 'walawala',
+            'password2': 'walawala',
+        })
+        self.assertTrue(b'Email already in use.' in response.data)
+        self.assertTrue(b'Username already in use.' in response.data)
 
     # TEST PASSWORD RESET
 
@@ -306,10 +345,6 @@ class FlaskClientTestCase(unittest.TestCase):
                                    follow_redirects=True)
         self.assertTrue(re.search(b'Hello,\s+Waluigi.', response.data))
 
-        response = self.client.get(url_for('auth.password_reset_request'),
-                                   follow_redirects=True)
-        self.assertTrue(re.search(b'Hello,\s+Waluigi.', response.data))
-
         token2 = user.generate_reset_token()
         response = self.client.get(url_for('auth.password_reset',
                                            token=token2),
@@ -411,26 +446,11 @@ class FlaskClientTestCase(unittest.TestCase):
     def test_email_associated_with_google(self):
         """
         If a user signs up with google, the password field will be empty,
-        so passwords can not be changed.
+        so app passwords must be set.
         """
-        response = self.client.post(url_for('auth.register'), data={
-            'email': 'waluigi@'+current_app.config['MAIL_DOMAIN'],
-            'username': 'Waluigi',
-            'password': 'walawala',
-            'password2': 'walawala',
-        })
-
-        response = self.client.post(url_for('auth.login'), data={
-            'email': 'waluigi@'+current_app.config['MAIL_DOMAIN'],
-            'password': 'walawala'
-        }, follow_redirects=True)
-        self.assertTrue(re.search(b'Hello,\s+Waluigi.', response.data))
+        self.login()
 
         user = User.query.filter_by(email='waluigi@'+current_app.config['MAIL_DOMAIN']).first()
-        token = user.generate_confirmation_token()
-        response = self.client.get(url_for('auth.confirm', token=token),
-                                   follow_redirects=True)
-
         user.password_hash = None  # Simulate password_hash missing
         db.session.add(user)
         db.session.commit()
@@ -441,35 +461,18 @@ class FlaskClientTestCase(unittest.TestCase):
         }, follow_redirects=True)
         self.assertTrue(b'Invalid username or password', response.data)
 
-        self.logout()
+    def test_change_password_works_with_google_login(self):
+        """The change password should still work if a google account is used"""
+        self.login()
 
-        response = self.client.post(url_for('auth.password_reset_request'),
-                                    data={
-            'email': 'waluigi@'+current_app.config['MAIL_DOMAIN']
+        response = self.client.post(url_for('auth.change_password'), data={
+            'old_password': 'walawala',
+            'password': 'walawala2',
+            'password2': 'walawala2'
         }, follow_redirects=True)
-        self.assertTrue(b'This email is associated with a Google account, '
-                        b'the password cannot be reset here.' in response.data)
-
-    def test_change_password_fails_with_google_login(self):
-        """The change password should redirect if a google account is used"""
-        response = self.client.post(url_for('auth.register'), data={
-            'email': 'waluigi@'+current_app.config['MAIL_DOMAIN'],
-            'username': 'Waluigi',
-            'password': 'walawala',
-            'password2': 'walawala',
-        })
-
-        response = self.client.post(url_for('auth.login'), data={
-            'email': 'waluigi@'+current_app.config['MAIL_DOMAIN'],
-            'password': 'walawala'
-        }, follow_redirects=True)
-        self.assertTrue(re.search(b'Hello,\s+Waluigi.', response.data))
+        self.assertTrue(b'Your password has been updated' in response.data)
 
         user = User.query.filter_by(email='waluigi@'+current_app.config['MAIL_DOMAIN']).first()
-        token = user.generate_confirmation_token()
-        response = self.client.get(url_for('auth.confirm', token=token),
-                                   follow_redirects=True)
-
         user.password_hash = None  # Simulate password_hash missing
         db.session.add(user)
         db.session.commit()
@@ -477,8 +480,173 @@ class FlaskClientTestCase(unittest.TestCase):
         response = self.client.post(url_for('auth.change_password'), data={
             'email': 'waluigi@'+current_app.config['MAIL_DOMAIN']
         }, follow_redirects=True)
-        self.assertTrue(b'You cannot change your password when '
-                        b'signed in with a Google account.' in response.data)
+        self.assertTrue(b'You have not set an app password yet!' in response.data)
+
+    def test_email_validation_on_set_app_password(self):
+        """
+        Test the email validator on the set app password will throw an
+        error if the email cannot be found.
+        """
+        self.login()
+
+        user = User.query.filter_by(email='waluigi@'+current_app.config['MAIL_DOMAIN']).first()
+        user.password_hash = None  # Simulate password_hash missing
+        db.session.add(user)
+        db.session.commit()
+
+        self.logout()
+
+        # user wrong email
+        token = user.generate_reset_token()
+        response = self.client.post(url_for('auth.set_app_password',
+                                            token=token),
+                                    data={
+            'email': 'wario@'+current_app.config['MAIL_DOMAIN'],
+            'password': 'walawala2',
+            'password2': 'walawala2'
+        })
+        self.assertTrue(b'Unknown email address.'in response.data)
+
+        # use correct email
+        token2 = user.generate_reset_token()
+        response = self.client.post(url_for('auth.set_app_password',
+                                            token=token2),
+                                    data={
+            'email': 'waluigi@'+current_app.config['MAIL_DOMAIN'],
+            'password': 'walawala2',
+            'password2': 'walawala2'
+        }, follow_redirects=True)
+        self.assertTrue(b'Your app password has been set.' in response.data)
+
+    def test_email_validation_on_set_app_password_request(self):
+        """
+        Test the email validator on the set app password request will throw an
+        error if the email cannot be found.
+        """
+        self.login()
+
+        user = User.query.filter_by(email='waluigi@'+current_app.config['MAIL_DOMAIN']).first()
+        user.password_hash = None  # Simulate password_hash missing
+        db.session.add(user)
+        db.session.commit()
+
+        # use wrong email
+        response = self.client.post(url_for('auth.set_app_password_request'),
+                                    data={
+            'email': 'wario@'+current_app.config['MAIL_DOMAIN'],
+        }, follow_redirects=True)
+        self.assertTrue(b'Unknown email address.' in response.data)
+
+        # use correct email
+        response = self.client.post(url_for('auth.set_app_password_request'),
+                                    data={
+            'email': 'waluigi@'+current_app.config['MAIL_DOMAIN'],
+            'password': 'walawala2',
+            'password2': 'walawala2'
+        }, follow_redirects=True)
+        if self.app.config['MAIL_USERNAME'] != '':
+            self.assertTrue(
+                b'An email with instructions to set your app password' in response.data)
+        else:
+            self.assertTrue(b'cannot reset your password' in response.data)
+
+    def test_set_app_password_form(self):
+        """Checks the set app password form is working properly"""
+        self.login()
+
+        user = User.query.filter_by(email='waluigi@'+current_app.config['MAIL_DOMAIN']).first()
+        user.password_hash = None  # Simulate password_hash missing
+        db.session.add(user)
+        db.session.commit()
+
+        self.logout()
+
+        token = user.generate_reset_token()
+        response = self.client.post(url_for('auth.set_app_password',
+                                            token=token),
+                                    data={
+            'email': 'waluigi@'+current_app.config['MAIL_DOMAIN'],
+            'password': 'walawala2',
+            'password2': 'walawala2'
+        }, follow_redirects=True)
+
+        self.assertTrue(b'Your app password has been set.' in response.data)
+
+    def test_set_app_password_token_expires(self):
+        """Checks set app password fails when token has expired"""
+        self.login()
+
+        user = User.query.filter_by(email='waluigi@'+current_app.config['MAIL_DOMAIN']).first()
+        user.password_hash = None  # Simulate password_hash missing
+        db.session.add(user)
+        db.session.commit()
+
+        self.logout()
+
+        token = user.generate_reset_token(0.5)
+        time.sleep(1)
+        response = self.client.post(url_for('auth.set_app_password',
+                                            token=token),
+                                    data={
+            'email': 'waluigi@'+current_app.config['MAIL_DOMAIN'],
+            'password': 'walawala2',
+            'password2': 'walawala2'
+        }, follow_redirects=True)
+
+        self.assertTrue(b'The set app password link is invalid or has expired.'
+                        in response.data)
+
+    def test_bad_set_app_password_token(self):
+        """Checks set app password failure with bad token"""
+        self.login()
+
+        user = User.query.filter_by(email='waluigi@'+current_app.config['MAIL_DOMAIN']).first()
+        user.password_hash = None  # Simulate password_hash missing
+        db.session.add(user)
+        db.session.commit()
+
+        self.logout()
+
+        token = user.generate_reset_token()
+        response = self.client.post(url_for('auth.set_app_password',
+                                            token='bad-token'),
+                                    data={
+            'email': 'waluigi@'+current_app.config['MAIL_DOMAIN'],
+            'password': 'walawala2',
+            'password2': 'walawala2'
+        }, follow_redirects=True)
+
+        self.assertTrue(b'The set app password link is invalid or has expired.'
+                        in response.data)
+
+    def test_set_app_password_redirect(self):
+        """Checks for redirect if user isn't logged out"""
+        self.login()
+
+        # Don't Simulate password_hash missing
+        user = User.query.filter_by(email='waluigi@'+current_app.config['MAIL_DOMAIN']).first()
+        token = user.generate_reset_token()
+        response = self.client.post(url_for('auth.set_app_password',
+                                            token=token),
+                                    data={
+            'email': 'waluigi@'+current_app.config['MAIL_DOMAIN'],
+            'password': 'walawala2',
+            'password2': 'walawala2'
+        }, follow_redirects=True)
+        self.assertTrue(re.search(b'Hello,\s+Waluigi.', response.data))
+
+    def test_set_app_password_request_redirect(self):
+        """Checks for redirect if user already has an app password"""
+        self.login()
+
+        # Don't Simulate password_hash missing
+        user = User.query.filter_by(email='waluigi@'+current_app.config['MAIL_DOMAIN']).first()
+        token = user.generate_reset_token()
+        response = self.client.post(url_for('auth.set_app_password_request'),
+                                    data={
+            'email': 'wario@'+current_app.config['MAIL_DOMAIN'],
+        }, follow_redirects=True)
+        self.assertTrue(re.search(b'Hello,\s+Waluigi.', response.data))
 
     # TEST OAUTH
 
@@ -501,31 +669,21 @@ class FlaskClientTestCase(unittest.TestCase):
                                    follow_redirects=True)
         self.assertTrue(b'Authentication failed.' in response.data)
 
+    # TEST VIEWALL POSTS WORK
+
+    def test_toggle_search(self):
+        """DEPRECATED: test checkbox form on viewall"""
+        self.assertTrue(None is None)
+        """
+        self.login()
+        response = self.client.post(url_for('main.show_machine_data'),
+                                    data={'search_enable': 'True'})
+        self.assertTrue(b'True' in response.data)
+        response = self.client.post(url_for('main.show_machine_data'),
+                                    data={'search_enable': ''})
+        self.assertTrue(b'Enable search' in response.data)
+        """
     # TEST JSON POST TO WEBPAGE
-
-    def test_bad_json_form_post(self):
-        """Malformed json data gives an error"""
-        self.login()
-        response = self.client.post(url_for('main.manual_json_post'), data={
-            'json_message': "{\"machine_name': \"STRATO25\", \
-            \"datetime\": \"2017-09-13T13:01:57Z\", \
-            \"brinefeed_HH\": \"True\", \
-            \"tt_1_1\": \"22.3\"}"
-        })
-        self.assertTrue(b'JSON message was improperly formatted.' in response.data)
-
-    def test_example_json_form_post(self):
-        """Test a post to the webpage form"""
-        self.login()
-        data = {}
-        data['json_message'] = self.EXAMPLE_COMPACT_JSON_MESSAGE
-        response = self.client.post(
-            url_for('main.manual_json_post'), data=data)
-        self.assertTrue(b'successfully posted' in response.data)
-
-        # Check view all is working
-        response = self.client.get(url_for('main.show_machine_data'))
-        self.assertTrue(b'datetime' in response.data)
 
     def test_wrong_json_time_format(self):
         """Test that an error will be thrown if the date is not rfc3339"""
@@ -559,27 +717,3 @@ class FlaskClientTestCase(unittest.TestCase):
         response = self.client.post(
             url_for('main.manual_json_post'), data=data)
         self.assertTrue(b'Missing datetime' in response.data)
-
-    def test_json_missing_data(self):
-        """Test error will be thrown if a sensor is missing in the json"""
-        self.login()
-        data = {}
-        response = self.client.post(url_for('main.manual_json_post'), data={
-            'json_message': "{\"datetime\": \"2017-09-13T13:01:57Z\"}"
-        })
-        self.assertTrue(
-            b'A sensor may have been removed from the network' in response.data)
-        self.assertTrue(b'sensor_1' in response.data)
-
-    def test_json_extra_data(self):
-        """Test error will be thrown if a sensor has extra sensors in json"""
-        self.login()
-        json_with_extra_sensor = json.loads(self.EXAMPLE_COMPACT_JSON_MESSAGE)
-        json_with_extra_sensor['cat'] = 'dog'
-        json_with_extra_sensor = json.dumps(json_with_extra_sensor)
-        data = {}
-        data['json_message'] = json_with_extra_sensor
-        response = self.client.post(
-            url_for('main.manual_json_post'), data=data)
-        self.assertTrue(b'may have been added to the network.' in response.data)
-        self.assertTrue(b'cat' in response.data)

@@ -1,4 +1,4 @@
-version: "3.3"
+version: "3.6"
 
 services:
   web:
@@ -11,6 +11,27 @@ services:
         constraints: [node.role == manager] # this parameter should be worker when in the cloud with managers and workers
     command: ./docker_setup.sh postgres postgres_test
     depends_on:
+      - celery
+    environment:
+      - PYTHONUNBUFFERED=1
+    secrets:
+      - chamber_of_secrets
+      - psql_password_secrets
+    networks:
+      - webnet
+    labels:
+      com.backend.description: "web"
+
+  celery:
+    image: "${DOCKER_REPO}/${DOCKER_STACK}_web:${GIT_REV_SHORT:-latest}"
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints: [node.role == manager] # this parameter should be worker when in the cloud with managers and workers
+    command: celery worker -A celery_worker.celery --loglevel=info
+    depends_on:
       - postgres
       - redis
     environment:
@@ -21,7 +42,30 @@ services:
     networks:
       - webnet
     labels:
-      com.backend.description: "web"
+      com.backend.description: "celery"
+
+  flower:
+    image: "${DOCKER_REPO}/${DOCKER_STACK}_web:${GIT_REV_SHORT:-latest}"
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: ./docker_flower_setup.sh false local
+    depends_on:
+      - postgres
+      - redis
+      - celery
+    ports:
+      - "5555:5555"
+    environment:
+      - PYTHONUNBUFFERED=1
+    secrets:
+      - chamber_of_secrets
+      - psql_password_secrets
+      - flower_secrets
+    networks:
+      - webnet
+    labels:
+      com.backend.description: "flower"
+
 
   nginx:
     image: "${DOCKER_REPO}/${DOCKER_STACK}_nginx:${GIT_REV_SHORT:-latest}"
@@ -86,13 +130,15 @@ services:
     secrets:
       - psql_password_secrets
 
-  redis: 
+  redis:
     image: "${DOCKER_REPO}/${DOCKER_STACK}_redis:${GIT_REV_SHORT:-latest}"
     deploy:
       restart_policy:
         condition: on-failure
       placement:
         constraints: [node.role == manager]
+    ports:
+      - "6379:6379"
     secrets:
       - chamber_of_secrets
     networks:
@@ -130,4 +176,5 @@ secrets:
     file: ./nginx.key.secrets
   nginx_dhparam.pem:
     file: ./dhparam.pem.secrets
-
+  flower_secrets:
+    file: ./flower.secrets

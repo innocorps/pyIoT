@@ -1,10 +1,12 @@
 """login, logout and register view functions"""
+from sqlalchemy import func
 from flask import render_template, redirect, \
     request, url_for, flash, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from . import auth
 from .forms import LoginForm, RegistrationForm, ChangePasswordForm, \
-    PasswordResetRequestForm, PasswordResetForm
+    PasswordResetRequestForm, PasswordResetForm, SetAppPasswordRequestForm, \
+    SetAppPasswordForm
 from .oauth import OAuthSignIn
 from .. import db, logger
 from ..models import User
@@ -36,7 +38,8 @@ def login():
     """
     form = LoginForm()
     if form.validate_on_submit():
-        user = User.query.filter_by(email=form.email.data).first()
+        email = form.email.data.lower()
+        user = User.query.filter(func.lower(User.email)==email).first()
         try:
             if user is not None and user.verify_password(form.password.data):
                 login_user(user, form.remember_me.data)
@@ -109,12 +112,13 @@ def oauth_callback(provider):
     if email is None:  # need an email to complete authentication
         flash('Authentication failed.')
         return redirect(url_for('main.index'))
-    user = User.query.filter_by(email=email).first()
+    email = email.lower()
+    user = User.query.filter(func.lower(User.email)==email).first()
     if not user:
         if username is None or username == "":
             # if a username is not found, it pulls t from the email
             username = email.split('@')[0]
-        # checks for correct domain email, fails if it isn't
+        # checks for correct email domain, fails if it isn't
         if email.split('@')[1] != current_app.config['MAIL_DOMAIN']:
             flash('You cannot login with this email.')
             return redirect(url_for('auth.login'))
@@ -138,7 +142,8 @@ def register():
     """
     form = RegistrationForm()
     if form.validate_on_submit():
-        user = User(email=form.email.data,
+        email = form.email.data.lower()
+        user = User(email=email,
                     username=form.username.data,
                     password=form.password.data)
         # pylint: disable=no-member
@@ -215,14 +220,10 @@ def change_password():
     Returns:
         redirects to main.index after form submission
     """
-    user_id = current_user.get_id()
-    user = User.query.filter_by(id=user_id).first()
-    # if password_hash is empty, they are using a google account
-    if user.password_hash is None:
-        # they can not change their google password here
-        flash('You cannot change your password when signed '
-              'in with a Google account.')
-        return redirect(url_for('main.index'))
+    # if password_hash is empty, they need to set an app password first
+    if current_user.password_hash is None:
+        flash('You have not set an app password yet!')
+        return redirect(url_for('auth.set_app_password_request'))
     form = ChangePasswordForm()
     if form.validate_on_submit():
         if current_user.verify_password(form.old_password.data):
@@ -245,15 +246,10 @@ def password_reset_request():
         redirects to auth.login if the email is sent,
         else renders the reset_password page
     """
-    if not current_user.is_anonymous:
-        return redirect(url_for('main.index'))
     form = PasswordResetRequestForm()
     if form.validate_on_submit():
-        user = User.query.filter_by(email=form.email.data).first()
-        if user and user.password_hash is None:
-            flash('This email is associated with a Google account, '
-                  'the password cannot be reset here.')
-            return redirect(url_for('auth.login'))
+        email = form.email.data.lower()
+        user = User.query.filter(func.lower(User.email)==email).first()
         token = user.generate_reset_token()
         response = send_email(user.email, 'Reset Your Password',
                               'auth/email/reset_password',
@@ -261,6 +257,7 @@ def password_reset_request():
                               next=request.args.get('next'))
         flash('An email with instructions to reset your password has been '
               'sent to you.')
+        logout_user()
         return redirect(url_for('auth.login'))
     return render_template('auth/reset_password.html', form=form)
 
@@ -279,10 +276,64 @@ def password_reset(token):
         return redirect(url_for('main.index'))
     form = PasswordResetForm()
     if form.validate_on_submit():
-        user = User.query.filter_by(email=form.email.data).first()
+        email = form.email.data.lower()
+        user = User.query.filter(func.lower(User.email)==email).first()
         if user.reset_password(token, form.password.data):
             flash('Your password has been updated.')
             return redirect(url_for('auth.login'))
         flash('The password reset link is invalid or has expired.')
         return redirect(url_for('main.index'))
     return render_template('auth/reset_password.html', form=form)
+
+
+@auth.route('/set-password', methods=['GET', 'POST'])
+@login_required
+def set_app_password_request():
+    """
+    Let's a user set an app password, if they originally signed up through
+    Google Single Sign-On.
+
+    Returns:
+        Logs user out, redirects to auth.login on submission. Otherwise just
+        loads the set_app_password page.
+    """
+    if current_user.password_hash is not None:
+        return redirect(url_for('main.index'))
+    form = SetAppPasswordRequestForm(obj=current_user)
+    if form.validate_on_submit():
+        form.populate_obj(current_user)
+        email = form.email.data.lower()
+        user = User.query.filter(func.lower(User.email)==email).first()
+        token = user.generate_reset_token()
+        response = send_email(user.email, 'Set Your App Password',
+                              'auth/email/set_app_password',
+                              user=user, token=token)
+        flash('An email with instructions to set your app password has been '
+              'sent to you. You will now be logged out.')
+        logout_user()
+        return redirect(url_for('auth.login'))
+    return render_template('auth/set_app_password.html', form=form)
+
+
+@auth.route('/set-password/<token>', methods=['GET', 'POST'])
+def set_app_password(token):
+    """
+    The user is taken here after they click the link
+    in the set app password email
+
+    Returns:
+        redirects to either auth.login (if successful) or
+        main.index (if unsuccessful)
+    """
+    if not current_user.is_anonymous:
+        return redirect(url_for('main.index'))
+    form = SetAppPasswordForm()
+    if form.validate_on_submit():
+        email = form.email.data.lower()
+        user = User.query.filter(func.lower(User.email)==email).first()
+        if user.reset_password(token, form.password.data):
+            flash('Your app password has been set.')
+            return redirect(url_for('auth.login'))
+        flash('The set app password link is invalid or has expired.')
+        return redirect(url_for('main.index'))
+    return render_template('auth/set_app_password.html', form=form)

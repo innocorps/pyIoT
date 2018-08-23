@@ -41,7 +41,8 @@ def server_error(message):  # pragma: no cover
     """
     response = jsonify(
         {'error': '500 Internal Server Error',
-         'message': 'There was an error in the server code.'})
+         'message': 'There was an error in the server code:'+message})
+    response.status_code = 500
     current_app.logger.error(message)
     return response
 
@@ -94,6 +95,24 @@ def unauthorized(message):
     response.status_code = 401
     current_app.logger.warning(str(response.data) + '. The IP trying to '
                                'access data: ' +
+                               str(request.remote_addr))
+    return response
+
+
+def too_many_requests(message):
+    """
+    Creates 429: Too Many Requests response
+
+    Args:
+        message: this is the imported error that the program sends to this file
+
+    Returns:
+        response of '429 error' with message 'too many requests'
+    """
+    response = jsonify({'429 error': 'too many requests', 'message': message})
+    response.status_code = 429
+    current_app.logger.warning(str(response.data) + '. The IP trying '
+                               'to access data: ' +
                                str(request.remote_addr))
     return response
 

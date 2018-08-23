@@ -1,10 +1,12 @@
-"""CONFIG file for PyIoT Backend"""
+"""CONFIG file for web"""
 
 # pylint: disable=too-few-public-methods
 import os
 import sys
 import logging
 import json
+from datetime import timedelta as td
+from celery.task.control import rate_limit
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
@@ -52,10 +54,26 @@ class Config(object):
         print('EXITING.')
         sys.exit(-1)
 
+    PREFERRED_URL_SCHEME = 'https'
+    SESSION_COOKIE_SECURE = True
+
+    CELERY_RESULT_BACKEND = 'redis://redis:6379'
+    CELERY_TASK_RESULT_EXPIRES = td(seconds=1800)
+    CELERY_BROKER_URL = 'redis://redis:6379'
+    CELERY_ACKS_LATE = True
+    CELERYD_PREFETCH_MULTIPLIER = 1
+    rate_limit = '4/m'
+
     TRAP_BAD_REQUEST_ERRORS = True
     SQLALCHEMY_COMMIT_ON_TEARDOWN = False
+
+    # Log database requests that take a long time
+    SQLALCHEMY_RECORD_QUERIES = True
+    # Database query timeout in seconds
+    SQLALCHEMY_DATABASE_QUERY_TIMEOUT = 0.05
+
     POSTS_PER_PAGE = 20
-    MAX_API_DATA_PER_REQUEST = 3600  # cannot pull more than an hour for API
+    MAX_API_DATA_PER_REQUEST = 1800  # cannot pull more than an hour for API
     REDIS_CACHE_TIMEOUT = 3600 * 24 * 3
     LOGGING_FORMAT = ('%(asctime)s - %(name)s - %(levelname)s - %(message)s '
                       '[in %(pathname)s: line %(lineno)d]')
@@ -221,6 +239,7 @@ class TestingConfig(Config):
     """
     TESTING = True
     WTF_CSRF_ENABLED = False
+    CELERY_ALWAYS_EAGER = True
     try:
         with open('/run/secrets/chamber_of_secrets') as secret_chamber:
             for line in secret_chamber:

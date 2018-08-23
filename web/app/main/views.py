@@ -31,13 +31,20 @@ def index():
 @login_required
 def show_machine_data():
     """
-    Outputs all table data to an HTML table
+    Outputs all machine post table data to an HTML table
 
     Returns:
         render_template, which allows a user to view all the data on
         the website via viewdata.html.
     """
     alive = watchdog.is_alive()
+    auto_refresh = False
+    try:
+        state = db.session.query(Machine).order_by(
+            desc(Machine.datetime)).first().state
+    except AttributeError as e:
+        print(e)
+        state = None
 
     machine_columns = Machine.__table__.columns.keys()  # Grabs column headers
     page = request.args.get('page', 1, type=int)
@@ -57,7 +64,8 @@ def show_machine_data():
         data.append(list((item).values()))
     return render_template('viewdata.html', data=data,
                            machine_columns=machine_columns,
-                           pagination=pagination, alive=alive)
+                           pagination=pagination, alive=alive, state=state,
+                           auto_refresh=auto_refresh)
 
 
 @main.route("/manualjsonpostdata", methods=['GET', 'POST'])
@@ -195,9 +203,6 @@ def json_post_to_dict(form):
     message = str(form.json_message.data)
     try:
         dict_post = json.loads(message)
-        if isinstance(dict_post, str):
-            print("JSON Message is improperly formatted.")
-            dict_post = None
     except json.decoder.JSONDecodeError as e:
         print("json_post_to_dict: json decoder failed to parse message")
         print(e)

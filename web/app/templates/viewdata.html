@@ -2,13 +2,30 @@
 {% import "_macros.html" as macros %}
 {% import "bootstrap/wtf.html" as wtf %}
 
-{% block title %}PyIoT Data{% endblock %}
+{% block title %}Data{% endblock %}
 
 {% block page_content %}
 
+<style>
+div.refresh-btn {
+    position: relative;
+    z-index: 99;
+    float: right;
+}
+
+div.relative-container {
+    position: relative;
+}
+</style>
 
 <div class="page-header">
-    <h1>PyIoT Data</h1>
+    <h1>Data</h1>
+</div>
+
+<div class="container-fluid refresh-btn">
+    <button type="button" class="btn btn-info" onclick="toggleRefresh()" id="refresh_btn">
+        Auto-Refresh is Loading...
+    </button><p></p>
 </div>
 
 <div class="container-fluid" id="ajax">
@@ -18,69 +35,174 @@
 	{% else %}
 		<button type="button" class="btn btn-danger">DISCONNECTED</button>
 	{% endif %}
+
+    {% if state %}
+    {% if state == "manual" %}
+        <button type="button" class="btn btn-primary">
+            Machine is Being Manually Controlled
+        </button>
+    {% elif state == "start" %}
+        <button type="button" class="btn btn-primary">
+            Machine is Starting
+        </button>
+    {% elif state == "idle" %}
+        <button type="button" class="btn btn-info">
+            Machine is Idle
+        </button>
+    {% elif state == "keepwarm" %}
+        <button type="button" class="btn btn-warning">
+            Machine is Keeping Warm
+        </button>
+    {% elif state == "warmup" %}
+        <button type="button" class="btn btn-warning">
+            Machine is Warming Up
+        </button>
+    {% elif state == "running" %}
+        <button type="button" class="btn btn-success">
+            Machine is running
+        </button>
+    {% elif state == "cooldown" %}
+        <button type="button" class="btn btn-info">
+            Machine is Cooling Down
+        </button>
+    {% elif state == "stop" %}
+        <button type="button" class="btn btn-danger">
+            Machine is Stopping
+        </button>
+    {% elif state == "shutdown" %}
+        <button type="button" class="btn btn-danger">
+            Machine is Shutting Down
+        </button>
+    {% else %}
+        <button type="button" class="btn btn-danger">
+            ERROR
+        </button>
+    {% endif %}
+    {% endif %}
 	</div>
+
 	{{ macros.table_widget("", machine_columns, data) }}
 	{% if pagination %}
 	<div class="pagination">
 	    {{ macros.pagination_widget(pagination, '.show_machine_data') }}
-	</div>
+    </div>
 	{% endif %}
 </div>
 {% endblock %}
 {% block scripts %}
 {{ super() }}
-	<script>
-		$(document).ready(function(){
-			(function doPoll(){ // immediately invoked function expression
-				setTimeout(function(){
-					$('#ajax').load(document.URL + ' ' + '#ajax', function(response, status, xhr){
-						if (typeof(Storage) !== "undefined") {
-							var tempScrollTop = parseInt(sessionStorage.getItem("data_tempScrollTop"));
-							var tempScrollLeft = parseInt(sessionStorage.getItem("data_tempScrollLeft"));
-							var tableArray = JSON.parse(sessionStorage.getItem("data_tableArray"));
-							$(window).scrollTop(tempScrollTop);
-							$(window).scrollLeft(tempScrollLeft);
-							$(".table-responsive").each(function(i, el){
-								currentID = $(this).children(".table").attr("id");
-								if (tableArray[i].id === currentID) {
-									$(this).scrollTop(tableArray[i].scrollTop);
-									$(this).scrollLeft(tableArray[i].scrollLeft);
-								}
-							});
-							doPoll(); //setup next poll recursively
-							if ( status === "error" ) {
-								//alert("Error refreshing data.");
-							}
-						} else {
-							alert("This browser does not support HTML5 storage.");
-						}
-					});
-				}, 1000);
-			})();
-			(function updateScroll(){ // immediately invoked function expression
-				setTimeout(function(){
-					if (typeof(Storage) !== "undefined") {
-						var tempScrollTop = $(window).scrollTop();
-						var tempScrollLeft = $(window).scrollLeft();
-						var tableArray = [];
-						$(".table-responsive").each(function(){
-						    var tableParam = {
-							id: $(this).children(".table").attr("id"),
-							scrollTop: $(this).scrollTop(),
-							scrollLeft: $(this).scrollLeft()
-						    };
-						    tableArray.push(tableParam);
-						});
-						sessionStorage.setItem("data_tempScrollTop", tempScrollTop.toString());
-						sessionStorage.setItem("data_tempScrollLeft", tempScrollLeft.toString());
-						sessionStorage.setItem("data_tableArray", JSON.stringify(tableArray));
-						updateScroll();
-					} else {
-						alert("This browser does not support HTML5 storage.");
-					}
-				}, 10);
-			})();
-		});
-	</script>
+<script>
+// Define Variables, load settings
+
+// Either load auto_refresh from sessionStorage or from default val defined in views.py
+var auto_refresh_str = "{{ auto_refresh | lower }}";
+var auto_refresh = JSON.parse(sessionStorage.getItem("data_auto_refresh"));
+if (typeof(auto_refresh) !== "boolean") { var auto_refresh = JSON.parse(auto_refresh_str); }
+
+setRefreshButton();  // With variables loaded, set the refresh button
+loadScrollPosition();  // Reload scroll position
+
+
+$(document).ready(function(){  // immediately runs after page is ready
+    (function doPoll(){
+        // Updates the state & dataframes by reloading the /viewdata page,
+        // and only inserting elements with the #ajax id
+        setTimeout(function(){
+            if (auto_refresh) {
+                $('#ajax').load(document.URL + ' #ajax', function(response, status, xhr){
+                    // Reloads current webpage, discards non #ajax elements
+                    if (typeof(Storage) !== "undefined") {
+                        var tempScrollTop = parseInt(sessionStorage.getItem("data_tempScrollTop"));
+                        var tempScrollLeft = parseInt(sessionStorage.getItem("data_tempScrollLeft"));
+                        var tableArray = JSON.parse(sessionStorage.getItem("data_tableArray"));
+                        $(window).scrollTop(tempScrollTop);
+                        $(window).scrollLeft(tempScrollLeft);
+                        $(".table-responsive").each(function(i, el){
+                            currentID = $(this).children(".table").attr("id");
+                            if (tableArray[i].id === currentID) {
+                                $(this).scrollTop(tableArray[i].scrollTop);
+                                $(this).scrollLeft(tableArray[i].scrollLeft);
+                            }
+                        });
+                        // TODO: Not in use; spits out error when refreshing
+                        // if ( status === "error" ) {
+                        // 	alert("Error refreshing data.");
+                        // }
+                    } else {
+                        alert("This browser does not support HTML5 storage.");
+                        return;
+                    }
+                });
+            }
+            doPoll();  //setup next poll recursively
+        }, 1000);
+    })();
+
+    (function updateScroll(){
+        // Recursive setTimeout function that updates tmp scroll positions &
+        // refresh button status for when loading new data
+        setTimeout(function(){
+            if (typeof(Storage) !== "undefined") {
+                var tempScrollTop = $(window).scrollTop();
+                var tempScrollLeft = $(window).scrollLeft();
+                var tableArray = [];
+                $(".table-responsive").each(function(){
+                    var tableParam = {
+                    id: $(this).children(".table").attr("id"),
+                    scrollTop: $(this).scrollTop(),
+                    scrollLeft: $(this).scrollLeft()
+                    };
+                    tableArray.push(tableParam);
+                });
+                sessionStorage.setItem("data_tempScrollTop", tempScrollTop.toString());
+                sessionStorage.setItem("data_tempScrollLeft", tempScrollLeft.toString());
+                sessionStorage.setItem("data_tableArray", JSON.stringify(tableArray));
+                sessionStorage.setItem("data_auto_refresh", auto_refresh.toString());
+                updateScroll();
+            } else {
+                alert("This browser does not support HTML5 storage.");
+                return;
+            }
+        }, 10);
+    })();
+});
+
+
+function toggleRefresh() {
+    // Enables/Disables the page from auto-refreshing its datatables & state
+    auto_refresh = !auto_refresh;
+    setRefreshButton();
+}
+
+function setRefreshButton() {
+    // Sets the style & Text of Refresh Button
+    var refresh_btn = document.getElementById("refresh_btn");
+    if (auto_refresh) {
+        refresh_btn.className = "btn btn-primary";
+        refresh_btn.innerHTML = "Auto-Refresh is On";
+    } else {
+        refresh_btn.className = "btn btn-danger";
+        refresh_btn.innerHTML = "Auto-Refresh is Off";
+    }
+}
+
+function loadScrollPosition() {
+    // Reloads the Scroll position
+    // TODO: Add in expiry date?
+    if (typeof(Storage) !== "undefined") {
+        var newPageScrollTop = parseInt(sessionStorage.getItem("data_tempScrollTop"));
+        var newPageScrollLeft = parseInt(sessionStorage.getItem("data_tempScrollLeft"));
+        if (typeof(newPageScrollTop) !== "number" || typeof(newPageScrollLeft) !== "number") {
+            return;
+        } else {
+            $(window).scrollTop(newPageScrollTop);
+            $(window).scrollLeft(newPageScrollLeft);
+        }
+    } else {
+        alert("This browser does not support HTML5 storage.");
+    }
+}
+
+</script>
 
 {% endblock %}

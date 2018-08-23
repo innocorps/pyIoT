@@ -1,4 +1,5 @@
 """WTForms webpage forms for registration and logins"""
+from sqlalchemy import func
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, BooleanField, SubmitField
 from wtforms.validators import Required, Email, Length, Regexp, EqualTo
@@ -37,23 +38,26 @@ class RegistrationForm(FlaskForm):
         wtforms a second time for password verification
         submit: takes the user's decision to 'Register'
     """
-    email = StringField('Email', validators=[Required(),
-                                             Length(1, 64),
-                                             Email()])
+    email = StringField('Email', validators=[
+        Required(), Length(1, 64), Email(),
+        Regexp('^([a-zA-Z0-9_\-\.]+)@([a-zA-Z0-9_\-\.]+)\.([a-zA-Z]{2,5})*$',
+               0, 'Invalid email address.')])
     username = StringField('Username', validators=[
         Required(), Length(1, 64), Regexp('^[A-Za-z][A-Za-z0-9_.]*$',
                                           0, 'Usernames must have only '
                                           'letters, '
-                                          'numbers, dots or underscores')])
+                                          'numbers, dots or underscores.')])
     password = PasswordField('Password', validators=[
-        Required(), EqualTo('password2', message='Passwords must match.')])
+        Required(), Length(8, 64),
+        EqualTo('password2', message='Passwords must match.')])
     password2 = PasswordField('Confirm password', validators=[Required()])
     submit = SubmitField('Register')
 
     # pylint: disable=no-self-use
     def validate_email(self, field):
         """
-        Check that the email isn't already registered, and is not email specified by config file
+        Check that the email isn't already registered, and is the right email domain
+        as per config
 
         Args:
             self: is a class argument
@@ -63,10 +67,10 @@ class RegistrationForm(FlaskForm):
             ValidationError, only if the email is already registered,
             or is not a company email
         """
-
-        if User.query.filter_by(email=field.data).first():
-            raise ValidationError('Email already registered.')
-        if current_app.config['MAIL_DOMAIN'] not in field.data:
+        email = field.data.lower()
+        if User.query.filter(func.lower(User.email) == email).first():
+            raise ValidationError('Email already in use.')
+        if current_app.config['MAIL_DOMAIN'] not in email:
             raise ValidationError('Not an allowed email domain')
 
     def validate_username(self, field):
@@ -78,9 +82,11 @@ class RegistrationForm(FlaskForm):
             field: is the username
 
         Returns:
-            ValidationError, only if username is already in use
+            ValidationError, only if username is already in use.
+            Check is case-insensitive.
         """
-        if User.query.filter_by(username=field.data).first():
+        username = field.data.lower()
+        if User.query.filter(func.lower(User.username) == username).first():
             raise ValidationError('Username already in use.')
 
 
@@ -116,15 +122,16 @@ class PasswordResetRequestForm(FlaskForm):
     # pylint: disable=no-self-use
     def validate_email(self, field):
         """
-        Checks if the username is in the database
+        Checks if the email is in the database
 
         Args:
-            field: Contains the username
+            field: Contains the email
 
         Returns:
-            ValidationError if the username cannot be found
+            ValidationError if the email cannot be found
         """
-        if User.query.filter_by(email=field.data).first() is None:
+        email = field.data.lower()
+        if User.query.filter(func.lower(User.email) == email).first() is None:
             raise ValidationError('Unknown email address.')
 
 
@@ -148,13 +155,75 @@ class PasswordResetForm(FlaskForm):
     # pylint: disable=no-self-use
     def validate_email(self, field):
         """
-        Checks if the username is in the database
+        Checks if the email is in the database
 
         Args:
-            field: Contains the username
+            field: Contains the email
 
         Returns:
-            ValidationError if the username cannot be found
+            ValidationError if the email cannot be found
         """
-        if User.query.filter_by(email=field.data).first() is None:
+        email = field.data.lower()
+        if User.query.filter(func.lower(User.email) == email).first() is None:
+            raise ValidationError('Unknown email address.')
+
+
+class SetAppPasswordRequestForm(FlaskForm):
+    """
+    Request to set an app password.
+
+    Attributes:
+        email: enter the email that the reset link will be sent to
+        submit: Submit the request
+    """
+    email = StringField('Email', validators=[Required(), Length(1, 64),
+                                             Email()])
+    submit = SubmitField('Set App Password')
+
+    # pylint: disable=no-self-use
+    def validate_email(self, field):
+        """
+        Checks if the email is in the database
+
+        Args:
+            field: Contains the email
+
+        Returns:
+            ValidationError if the email cannot be found
+        """
+        email = field.data.lower()
+        if User.query.filter(func.lower(User.email) == email).first() is None:
+            raise ValidationError('Unknown email address.')
+
+
+class SetAppPasswordForm(FlaskForm):
+    """
+    Set a user's app password
+
+    Attributes:
+        email: the users email that will be setting the password
+        password: new password
+        password2: check the new password
+        submit: submit the request
+    """
+    email = StringField('Email', validators=[Required(), Length(1, 64),
+                                             Email()])
+    password = PasswordField('New Password', validators=[
+        Required(), EqualTo('password2', message='Passwords must match')])
+    password2 = PasswordField('Confirm password', validators=[Required()])
+    submit = SubmitField('Set App Password')
+
+    # pylint: disable=no-self-use
+    def validate_email(self, field):
+        """
+        Checks if the email is in the database
+
+        Args:
+            field: Contains the email
+
+        Returns:
+            ValidationError if the email cannot be found
+        """
+        email = field.data.lower()
+        if User.query.filter(func.lower(User.email) == email).first() is None:
             raise ValidationError('Unknown email address.')

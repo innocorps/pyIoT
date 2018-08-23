@@ -1,6 +1,6 @@
 # BACKEND STACK DOCKER README #
 
-### Backend Framework Stack###
+### Stack ###
 
 ### Limitations of Docker, Compose and Swarm ###
 Building images

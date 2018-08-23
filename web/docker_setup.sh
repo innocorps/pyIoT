@@ -89,7 +89,7 @@ else
 fi
 
 echo "Running Gunicorn WSGI"
-/usr/local/bin/gunicorn --error-logfile ./error.log --log-file ./info.log --enable-stdio-inheritance --timeout 120 -w 2 -b :8000 manage:app
+/usr/local/bin/gunicorn --error-logfile ./error.log --log-file ./info.log --enable-stdio-inheritance --timeout 30 -w 1 -b :8000 manage:app
 
 
 if [[ $? != 0 ]]; then
